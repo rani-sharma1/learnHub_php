@@ -1,29 +1,42 @@
 <?php
 session_start();
+$error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = trim($_POST['password'] ?? '');
 
-    $conn = mysqli_connect('localhost','root','','learnhub');
+    $conn = mysqli_connect('localhost', 'root', '', 'learnhub');
+    if (!$conn) {
+        die("Database connection failed: " . mysqli_connect_error());
+    }
 
     $sql = "SELECT learner_id, name, password FROM learner WHERE email = ?";
     $stmt = mysqli_prepare($conn, $sql);
-    mysqli_stmt_bind_param($stmt,'s',$email);
-    mysqli_stmt_execute($stmt);
-    mysqli_stmt_bind_result($stmt, $id, $name, $hash);
 
-    if (mysqli_stmt_fetch($stmt)) {
-        if (password_verify($password, $hash)) {
-            $_SESSION['user'] = ['id'=>$id,'name'=>$name,'email'=>$email];
-            header('Location: profile.php');
-            exit;
+    if ($stmt) {
+        mysqli_stmt_bind_param($stmt, 's', $email);
+        mysqli_stmt_execute($stmt);
+        mysqli_stmt_bind_result($stmt, $id, $name, $hash);
+
+        if (mysqli_stmt_fetch($stmt)) {
+            if (password_verify($password, $hash)) {
+                $_SESSION['user'] = ['id' => $id, 'name' => $name, 'email' => $email];
+                header('Location: profile.php');
+                exit;
+            } else {
+                $error = '⚠️ Invalid credentials.';
+            }
         } else {
-            $error='Invalid credentials';
+            $error = '⚠️ No user found with that email.';
         }
+
+        mysqli_stmt_close($stmt);
     } else {
-        $error='No user found';
+        $error = '⚠️ Database query error.';
     }
+
+    mysqli_close($conn);
 }
 ?>
 <!DOCTYPE html>
@@ -31,18 +44,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login Form</title>
+  <title>Login - LearnHub</title>
   <style>
-    * {
-      margin: 0; padding: 0; box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Arial', sans-serif;
       display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 10px;
       flex-direction: column;
+      align-items: center;
+      background: #f4f6f9;
     }
 
     /* Navbar */
@@ -54,152 +64,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       align-items: center;
       padding: 10px 50px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      margin-bottom: 10px;
+      margin-bottom: 20px;
     }
-    .header .logo img {
-      height: 50px;
-    }
-    .navbar {
-      display: flex;
-      gap: 20px;
-    }
+    .header .logo img { height: 50px; }
+    .navbar { display: flex; gap: 20px; }
     .navbar a {
-      text-decoration: none;
-      color: #333;
-      font-weight: 600;
+      text-decoration: none; color: #fff; font-weight: 600;
       transition: color 0.3s ease;
     }
-    .navbar a:hover {
-      color: #f2f3f6ff;
-    }
+    .navbar a:hover { color: #f2f3f6; }
 
     /* Container */
     .container {
-      background: rgba(255, 255, 255, 0.95);
+      background: #fff;
       padding: 40px;
-      border-radius: 20px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-      width: 100%;
-      max-width: 450px;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      animation: slideUp 0.6s ease-out;
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+      width: 100%; max-width: 400px;
     }
     .container h2 {
-      text-align: center;
-      color: #333;
-      font-size: 2.5rem;
-      margin-bottom: 30px;
-      font-weight: 600;
+      text-align: center; margin-bottom: 25px;
       background: linear-gradient(45deg, #667eea, #764ba2);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      background-clip: text;
+      font-size: 2rem; font-weight: bold;
     }
     .error-message {
-      color: #e74c3c;
-      background: rgba(231, 76, 60, 0.1);
-      padding: 10px;
-      border-radius: 8px;
+      color: #e74c3c; background: rgba(231,76,60,0.1);
+      padding: 10px; border-radius: 6px;
+      margin-bottom: 15px; font-size: 0.9rem;
       border-left: 4px solid #e74c3c;
-      margin-bottom: 20px;
-      font-size: 0.9rem;
     }
-    form { width: 100%; }
-    label {
-      display: block;
-      margin-bottom: 20px;
-      font-weight: 600;
-      color: #333;
-      font-size: 1rem;
-      position: relative;
-    }
+    label { display: block; margin-bottom: 15px; font-weight: bold; }
     input[type="email"], input[type="password"] {
-      width: 100%;
-      padding: 15px;
-      border: 2px solid #e0e6ed;
-      border-radius: 10px;
-      font-size: 1rem;
-      margin-top: 8px;
-      transition: all 0.3s ease;
-      background: #f8f9fa;
-      outline: none;
+      width: 100%; padding: 12px;
+      border: 1px solid #ccc; border-radius: 8px;
+      margin-top: 6px; font-size: 1rem;
     }
-    input[type="email"]:focus, input[type="password"]:focus {
-      border-color: #667eea;
-      background: #fff;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-      transform: translateY(-2px);
+    input:focus {
+      border-color: #667eea; outline: none;
+      box-shadow: 0 0 4px rgba(102,126,234,0.4);
     }
     .btn {
-      width: 100%;
-      padding: 15px;
+      width: 100%; padding: 12px;
       background: linear-gradient(45deg, #667eea, #764ba2);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 1.1rem;
-      font-weight: 600;
-      cursor: pointer;
+      border: none; color: white;
+      font-size: 1rem; font-weight: bold;
+      border-radius: 8px; cursor: pointer;
       transition: all 0.3s ease;
-      margin-top: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
     }
-    .btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
-      background: linear-gradient(45deg, #5a6fd8, #6a42c2);
-    }
-    .btn:active { transform: translateY(-1px); }
-    .container p {
-      text-align: center;
-      margin-top: 25px;
-      color: #666;
-      font-size: 0.95rem;
-    }
-    .container p a {
-      color: #667eea;
-      text-decoration: none;
-      font-weight: 600;
-      transition: color 0.3s ease;
-    }
-    .container p a:hover {
-      color: #764ba2;
-      text-decoration: underline;
-    }
+    .btn:hover { opacity: 0.9; }
+    .container p { margin-top: 15px; text-align: center; }
+    .container p a { color: #667eea; text-decoration: none; font-weight: 600; }
+    .container p a:hover { text-decoration: underline; }
 
-    @media (max-width: 480px) {
-      .header {
-        flex-direction: column;
-        gap: 15px;
-      }
-      .container {
-        padding: 30px 25px;
-        margin: 10px;
-      }
-      .container h2 { font-size: 2rem; }
-      input[type="email"], input[type="password"] { padding: 12px; }
-      .btn { padding: 12px; font-size: 1rem; }
+    /* Footer */
+    .footer {
+      background: #403f3f; color: #ddd;
+      padding: 30px 20px 20px; margin-top: 40px;
+      width: 100%;
     }
-
-    @keyframes slideUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
+    .footer-container {
+      display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr));
+      gap: 30px; max-width: 1200px; margin: auto;
     }
-
-    input::placeholder { color: #999; opacity: 0.7; }
-    label::after {
-      content: '';
-      position: absolute;
-      bottom: -5px;
-      left: 0;
-      width: 0;
-      height: 2px;
-      background: linear-gradient(45deg, #667eea, #764ba2);
-      transition: width 0.3s ease;
+    .footer h3, .footer h4 { color: #fff; margin-bottom: 10px; }
+    .footer p, .footer a { color: #bbb; font-size: 14px; text-decoration: none; }
+    .footer a:hover { color: #fff; }
+    .footer-links ul { list-style: none; padding: 0; }
+    .footer-links li { margin-bottom: 8px; }
+    .footer-bottom {
+      text-align: center; margin-top: 30px;
+      padding-top: 10px; border-top: 1px solid #333;
+      font-size: 12px; color: #aaa;
     }
-    label:focus-within::after { width: 100%; }
   </style>
 </head>
 <body>
@@ -224,17 +162,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <h2>Login</h2>
     <?php if(!empty($error)) echo "<div class='error-message'>$error</div>"; ?>
     <form method="post">
-      <label>
-        Email
-        <input type="email" name="email" placeholder="Enter your email address" required>
+      <label>Email
+        <input type="email" name="email" placeholder="Enter your email" required>
       </label>
-      <label>
-        Password
+      <label>Password
         <input type="password" name="password" placeholder="Enter your password" required>
       </label>
       <button class="btn" type="submit">Login</button>
     </form>
-    <p><a href="register.php">Create an account</a></p>
+    <p>Don’t have an account? <a href="register.php">Register</a></p>
   </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-about">
+        <h3>LearnHub</h3>
+        <p>Your trusted platform to find the best online courses that help you grow and achieve your goals.</p>
+      </div>
+      <div class="footer-links">
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="courses.html">Courses</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-contact">
+        <h4>Contact Us</h4>
+        <p>Email: support@learnhub.com</p>
+        <p>Phone: +91 9876543210</p>
+      </div>
+      <div class="footer-social">
+        <h4>Follow Us</h4>
+        <a href="#">Facebook</a><br>
+        <a href="#">Twitter</a><br>
+        <a href="#">Instagram</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2025 LearnHub. All Rights Reserved.</p>
+    </div>
+  </footer>
 </body>
 </html>
